@@ -2,11 +2,14 @@ import chalk from 'chalk';
 import { ApiClient } from './api-client';
 import { BettingStrategy } from './strategies';
 import { StatsTracker } from './stats-tracker';
+import { Logger } from './logger';
+import { Analyzer } from './analyzer';
 import { BetResult, SessionConfig, StrategyConfig } from './types';
 
 export class BettingBot {
   private apiClient: ApiClient;
   private statsTracker: StatsTracker;
+  private logger: Logger;
   private sessionConfig: SessionConfig;
   private raceCount = 0;
 
@@ -14,6 +17,7 @@ export class BettingBot {
     this.sessionConfig = sessionConfig;
     this.apiClient = new ApiClient(sessionConfig.cookies);
     this.statsTracker = new StatsTracker(startingBalance);
+    this.logger = new Logger();
   }
 
   async run(): Promise<void> {
@@ -51,9 +55,16 @@ export class BettingBot {
         }
       }
 
+      // Load historical data for improved betting
+      const historicalLogs = Logger.loadAllHistoricalLogs();
+      const horseStats = this.analyzeHorses(historicalLogs);
+
+      if (horseStats.length > 0) {
+        console.log(chalk.yellow('📊 Using historical data to improve bets\n'));
+      }
+
       // Start betting loop
       while (this.raceCount < this.sessionConfig.maxRaces) {
-
         // Decide bet based on strategy
         if (!currentOdds) {
           console.log(chalk.red('No odds data available'));
@@ -63,7 +74,8 @@ export class BettingBot {
         const betDecision = BettingStrategy.decideBet(
           currentOdds,
           currentBalance,
-          this.sessionConfig.strategyConfig
+          this.sessionConfig.strategyConfig,
+          horseStats.length > 0 ? horseStats : undefined
         );
 
         if (!betDecision) {
@@ -104,6 +116,7 @@ export class BettingBot {
           };
 
           this.statsTracker.recordBet(betResult);
+          this.logger.logBet(betResult, this.sessionConfig.strategyConfig.strategy);
           currentBalance = result.data.new_balance;
           currentRaceId = result.data.next_race.race_id;
           currentOdds = result.data.next_race.odds;
@@ -124,10 +137,48 @@ export class BettingBot {
         this.raceCount++;
       }
 
+      // Print session summary
       this.statsTracker.printSummary();
+
+      // Print historical analysis
+      const report = Analyzer.analyzeHistoricalData();
+      Analyzer.printReport(report);
+
+      console.log(chalk.cyan(`📁 Session logs saved to: ${this.logger.getLogFile()}\n`));
     } catch (error) {
       console.error(chalk.red(`Fatal error: ${error}`));
     }
+  }
+
+  private analyzeHorses(logs: any[]) {
+    const horseMap = new Map<number, any>();
+
+    for (const log of logs) {
+      if (!horseMap.has(log.horse)) {
+        horseMap.set(log.horse, {
+          horse: log.horse,
+          totalBets: 0,
+          wins: 0,
+          losses: 0,
+          avgOdds: 0
+        });
+      }
+
+      const stats = horseMap.get(log.horse);
+      stats.totalBets++;
+      if (log.result === 'win') {
+        stats.wins++;
+      } else {
+        stats.losses++;
+      }
+      stats.avgOdds = (stats.avgOdds * (stats.totalBets - 1) + log.odds) / stats.totalBets;
+    }
+
+    return Array.from(horseMap.values()).map(h => ({
+      ...h,
+      winRate: (h.wins / h.totalBets) * 100,
+      roi: ((h.wins - h.totalBets) / h.totalBets) * 100
+    }));
   }
 
   private delay(ms: number): Promise<void> {

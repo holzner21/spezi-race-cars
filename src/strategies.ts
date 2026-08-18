@@ -1,4 +1,5 @@
 import { RaceOdds, StrategyConfig } from './types';
+import { HorseStats } from './analyzer';
 
 export interface BetDecision {
   horse: number;
@@ -18,12 +19,13 @@ export class BettingStrategy {
   }
 
   /**
-   * Find the best bet based on strategy
+   * Find the best bet based on strategy with optional historical data
    */
   static decideBet(
     odds: RaceOdds,
     balance: number,
-    config: StrategyConfig
+    config: StrategyConfig,
+    horseStats?: HorseStats[]
   ): BetDecision | null {
     const winOdds = odds.win;
     const candidates: BetDecision[] = [];
@@ -38,12 +40,20 @@ export class BettingStrategy {
         continue;
       }
 
+      // Get historical win rate if available
+      const histStats = horseStats?.find(h => h.horse === horse);
+      const historicalWinRate = histStats ? histStats.winRate / 100 : null;
+
+      // Use historical data if available, otherwise use implied probability
+      const adjustedProbability = historicalWinRate ?? probability;
+      const adjustedEV = adjustedProbability - (1 - adjustedProbability) / horseOdds;
+
       candidates.push({
         horse,
         stake: 0,
         odds: horseOdds,
-        expectedValue,
-        reason: `Probability: ${(probability * 100).toFixed(2)}%, EV: ${expectedValue.toFixed(4)}`
+        expectedValue: adjustedEV,
+        reason: `Probability: ${(adjustedProbability * 100).toFixed(2)}%, EV: ${adjustedEV.toFixed(4)}${historicalWinRate ? ' [Historical]' : ''}`
       });
     }
 
