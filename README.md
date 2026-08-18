@@ -26,6 +26,46 @@ npm install
 npm run build
 ```
 
+## Testing
+
+Run the test suite with:
+
+```bash
+# Run all tests
+npm test
+
+# Run tests in watch mode (re-run on changes)
+npm test:watch
+
+# Run tests with coverage report
+npm test:coverage
+```
+
+### Test Coverage
+
+- **26 tests** covering core functionality
+- **78% coverage** on strategies module (bet selection logic)
+- **85% coverage** on logger module (session logging)
+- **66% coverage** on analyzer module (historical data analysis)
+
+### Test Files
+
+- [tests/strategies.test.ts](tests/strategies.test.ts) - Tests for betting strategy logic
+- [tests/logger.test.ts](tests/logger.test.ts) - Tests for session logging
+- [tests/analyzer.test.ts](tests/analyzer.test.ts) - Tests for historical data analysis
+
+Example test run output:
+```
+ PASS  tests/strategies.test.ts
+ PASS  tests/analyzer.test.ts
+ PASS  tests/logger.test.ts
+
+Test Suites: 3 passed, 3 total
+Tests:       26 passed, 26 total
+Snapshots:   0 total
+Time:        2.167 s
+```
+
 ## Usage
 
 ### Development Mode
