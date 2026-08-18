@@ -32,8 +32,13 @@ export class CLI {
 
     // Get cookies
     console.log(chalk.yellow('Step 1: Authentication\n'));
+    console.log(chalk.gray('To get your cookies:'));
+    console.log(chalk.gray('  1. Open the game at https://gewinnspiel.spezi.com/vespa-race/'));
+    console.log(chalk.gray('  2. Press F12 → Application tab → Cookies'));
+    console.log(chalk.gray('  3. Copy the full value of "wordpress_sec" and "wordpress_logged_in"\n'));
+    
     const cookies = await this.prompt(
-      chalk.gray('Enter your session cookies (wordpress_sec and wordpress_logged_in): ')
+      chalk.gray('Enter your session cookies: ')
     );
 
     if (!cookies) {
@@ -41,9 +46,27 @@ export class CLI {
     }
 
     // Get nonce
+    console.log(chalk.gray('\nTo get the nonce:'));
+    console.log(chalk.gray('  1. Open DevTools → Network tab'));
+    console.log(chalk.gray('  2. Refresh the page and look for a POST to "admin-ajax.php"'));
+    console.log(chalk.gray('  3. Check Request → Form Data → look for "nonce" value\n'));
+    
     const nonce = await this.prompt(chalk.gray('Enter the nonce value: '));
     if (!nonce) {
       throw new Error('Nonce is required');
+    }
+
+    // Get race ID
+    console.log(chalk.gray('\nTo get the current race ID:'));
+    console.log(chalk.gray('  1. In the Network tab, find the admin-ajax.php response'));
+    console.log(chalk.gray('  2. Look for "race_id" in the response'));
+    console.log(chalk.gray('  3. Or use the race_id from the request parameters\n'));
+    
+    const raceId = await this.promptNumber(
+      chalk.gray('Enter the current race ID: ')
+    );
+    if (!raceId) {
+      throw new Error('Race ID is required');
     }
 
     // Get max races
@@ -94,8 +117,8 @@ export class CLI {
     const sessionConfig: SessionConfig = {
       cookies,
       nonce,
+      raceId,
       maxRaces,
-      raceId: 0,
       strategyConfig
     };
 

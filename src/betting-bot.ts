@@ -27,12 +27,32 @@ export class BettingBot {
     let currentOdds = null;
 
     try {
-      // Start first bet
-      while (this.raceCount < this.sessionConfig.maxRaces) {
-        if (this.raceCount === 0 && !currentRaceId) {
-          console.log(chalk.yellow('⚠️  Need initial race data. Please start by getting initial odds.'));
+      // Initialize: fetch first race data
+      if (this.raceCount === 0) {
+        console.log(chalk.cyan('📋 Fetching initial race data...'));
+        try {
+          const initResult = await this.apiClient.placeBet({
+            action: 'vespa_race_play',
+            nonce: this.sessionConfig.nonce,
+            race_id: currentRaceId,
+            bet_type: 'win',
+            picks: 1, // Dummy pick
+            stake: 1 // Minimal stake just to get data
+          });
+
+          currentBalance = initResult.data.new_balance;
+          currentRaceId = initResult.data.next_race.race_id;
+          currentOdds = initResult.data.next_race.odds;
+
+          console.log(chalk.green(`✓ Initialized. Current balance: ${currentBalance}\n`));
+        } catch (error) {
+          console.error(chalk.red(`Failed to initialize: ${error}`));
           return;
         }
+      }
+
+      // Start betting loop
+      while (this.raceCount < this.sessionConfig.maxRaces) {
 
         // Decide bet based on strategy
         if (!currentOdds) {
