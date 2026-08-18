@@ -1,0 +1,103 @@
+import { RaceOdds, StrategyConfig } from './types';
+
+export interface BetDecision {
+  horse: number;
+  stake: number;
+  odds: number;
+  expectedValue: number;
+  reason: string;
+}
+
+export class BettingStrategy {
+  /**
+   * Calculate implied probability from odds
+   * Probability = 1 / odds
+   */
+  static getImpliedProbability(odds: number): number {
+    return 1 / odds;
+  }
+
+  /**
+   * Find the best bet based on strategy
+   */
+  static decideBet(
+    odds: RaceOdds,
+    balance: number,
+    config: StrategyConfig
+  ): BetDecision | null {
+    const winOdds = odds.win;
+    const candidates: BetDecision[] = [];
+
+    for (const [horseStr, horseOdds] of Object.entries(winOdds)) {
+      const horse = parseInt(horseStr);
+      const probability = this.getImpliedProbability(horseOdds);
+      const expectedValue = probability - (1 - probability) / horseOdds;
+
+      // Filter by odds threshold
+      if (horseOdds < config.minOddsThreshold || horseOdds > config.maxOddsThreshold) {
+        continue;
+      }
+
+      candidates.push({
+        horse,
+        stake: 0,
+        odds: horseOdds,
+        expectedValue,
+        reason: `Probability: ${(probability * 100).toFixed(2)}%, EV: ${expectedValue.toFixed(4)}`
+      });
+    }
+
+    if (candidates.length === 0) {
+      return null;
+    }
+
+    // Sort by different strategies
+    switch (config.strategy) {
+      case 'greedy':
+        // Pick best odds (highest potential payout)
+        candidates.sort((a, b) => b.odds - a.odds);
+        break;
+
+      case 'kelly':
+        // Kelly Criterion: maximize long-term growth
+        candidates.sort((a, b) => {
+          const kellyA = this.kellyFraction(a.odds, this.getImpliedProbability(a.odds));
+          const kellyB = this.kellyFraction(b.odds, this.getImpliedProbability(b.odds));
+          return kellyB - kellyA;
+        });
+        break;
+
+      case 'conservative':
+      default:
+        // Pick favorites with best odds
+        candidates.sort((a, b) => a.odds - b.odds);
+        break;
+    }
+
+    const best = candidates[0];
+    const stake = balance * (config.stakePercentage / 100);
+    best.stake = Math.max(Math.floor(stake), 1); // Minimum stake of 1
+
+    return best;
+  }
+
+  /**
+   * Kelly Criterion: f* = (p * b - q) / b
+   * where p = win probability, q = loss probability, b = odds - 1
+   */
+  private static kellyFraction(odds: number, probability: number): number {
+    const b = odds - 1;
+    const q = 1 - probability;
+    const fraction = (probability * b - q) / b;
+    return Math.max(0, Math.min(fraction, 0.25)); // Cap at 25% to be conservative
+  }
+
+  /**
+   * Calculate expected value of a bet
+   */
+  static calculateExpectedValue(stake: number, odds: number, probability: number): number {
+    const win = stake * odds * probability;
+    const loss = -stake * (1 - probability);
+    return win + loss;
+  }
+}
