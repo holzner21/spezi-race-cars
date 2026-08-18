@@ -12,6 +12,7 @@ An automated betting bot for the Vespa Race game on gewinnspiel.spezi.com. Place
 - 📈 Historical data analysis with horse performance metrics
 - 🧠 Self-learning algorithm that improves bets based on past results
 - 🌡️ Identifies hot/cold horses and optimal odds ranges
+- ⚡ **Smart rate limiting** - Automatically detects API throttling and retries with exponential backoff
 
 ## Installation
 
@@ -94,6 +95,24 @@ The bot tracks:
 - Total staked and total payout
 - Net profit/loss and ROI (%)
 - Individual bet history
+
+## Rate Limiting & Throttling
+
+The bot automatically detects API throttling (when you see response code `200` with `success: false`) and implements **exponential backoff**:
+
+- **1st throttle**: Waits 5 seconds before retrying
+- **2nd throttle**: Waits 10 seconds
+- **3rd throttle**: Waits 20 seconds
+- **Continues** up to 5 retry attempts with increasing delays (5s → 10s → 20s → 40s → 80s)
+
+This allows the bot to keep running during peak load times without crashing. If all retries fail, the session ends gracefully with a summary of results.
+
+**Example output when throttled:**
+```
+⏸️  API throttled! Retry 1/5 in 5.0s...
+⏸️  API throttled! Retry 2/5 in 10.0s...
+✓ WIN! Payout: 150, Balance: 850
+```
 
 ## Logging & Analysis
 
