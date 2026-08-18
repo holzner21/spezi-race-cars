@@ -44,6 +44,11 @@ export class ApiClient {
       const response = await this.axiosInstance.post('', params.toString());
 
       if (!response.data.success) {
+        const errorCode = response.data.data?.response_code;
+        if (errorCode === '200') {
+          // Specific throttling error
+          throw new ThrottledError(`API throttled - rate limit exceeded`);
+        }
         throw new Error(`API Error: ${response.data.data?.error || 'Unknown error'}`);
       }
 
@@ -54,5 +59,12 @@ export class ApiClient {
       }
       throw error;
     }
+  }
+}
+
+export class ThrottledError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ThrottledError';
   }
 }

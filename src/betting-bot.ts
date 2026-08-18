@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { ApiClient } from './api-client';
+import { ApiClient, ThrottledError } from './api-client';
 import { BettingStrategy } from './strategies';
 import { StatsTracker } from './stats-tracker';
 import { Logger } from './logger';
@@ -84,7 +84,7 @@ export class BettingBot {
           continue;
         }
 
-        // Place bet
+        // Place bet with retry logic for throttling
         console.log(
           chalk.blue(
             `Race ${this.raceCount + 1}: Betting ${betDecision.stake} on Horse ${betDecision.horse} @ ${betDecision.odds.toFixed(4)}`
@@ -93,7 +93,7 @@ export class BettingBot {
         console.log(chalk.gray(`  ${betDecision.reason}`));
 
         try {
-          const result = await this.apiClient.placeBet({
+          const result = await this.placeBetWithRetry({
             action: 'vespa_race_play',
             nonce: this.sessionConfig.nonce,
             race_id: currentRaceId,
@@ -179,6 +179,42 @@ export class BettingBot {
       winRate: (h.wins / h.totalBets) * 100,
       roi: ((h.wins - h.totalBets) / h.totalBets) * 100
     }));
+  }
+
+  private async placeBetWithRetry(
+    betConfig: any,
+    maxRetries: number = 5,
+    initialDelayMs: number = 5000
+  ): Promise<any> {
+    let lastError: Error | null = null;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await this.apiClient.placeBet(betConfig);
+      } catch (error) {
+        lastError = error as Error;
+
+        if (error instanceof ThrottledError) {
+          if (attempt < maxRetries) {
+            const delayMs = initialDelayMs * Math.pow(2, attempt - 1); // Exponential backoff
+            console.log(
+              chalk.yellow(
+                `⏸️  API throttled! Retry ${attempt}/${maxRetries} in ${(delayMs / 1000).toFixed(1)}s...`
+              )
+            );
+            await this.delay(delayMs);
+          } else {
+            console.log(chalk.red(`❌ API throttled after ${maxRetries} retries. Stopping.`));
+            throw new Error('Maximum retries exceeded due to API throttling');
+          }
+        } else {
+          // Other errors, don't retry
+          throw error;
+        }
+      }
+    }
+
+    throw lastError || new Error('Unknown error placing bet');
   }
 
   private delay(ms: number): Promise<void> {
