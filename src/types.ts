@@ -56,6 +56,7 @@ export interface SessionConfig {
   nonce: string;
   raceId?: number;
   maxRaces: number;
+  raceDelayMs?: number;
   strategyConfig: StrategyConfig;
 }
 

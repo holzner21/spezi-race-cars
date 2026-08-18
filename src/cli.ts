@@ -76,6 +76,11 @@ export class CLI {
       10
     );
 
+    const raceDelaySeconds = await this.promptNumber(
+      chalk.gray('Delay between races in seconds? (default 30): '),
+      30
+    );
+
     // Get strategy
     console.log(chalk.gray('\nAvailable strategies:'));
     console.log(chalk.gray('  1. greedy - Pick horses with best odds'));
@@ -119,6 +124,7 @@ export class CLI {
       nonce,
       raceId,
       maxRaces,
+      raceDelayMs: Math.max(1, raceDelaySeconds) * 1000,
       strategyConfig
     };
 
@@ -131,6 +137,7 @@ export class CLI {
     console.log(chalk.gray('  Stake per race: ') + chalk.white(`${config.strategyConfig.stakePercentage}%`));
     console.log(chalk.gray('  Odds range: ') + chalk.white(`${config.strategyConfig.minOddsThreshold} - ${config.strategyConfig.maxOddsThreshold}`));
     console.log(chalk.gray('  Max races: ') + chalk.white(config.maxRaces.toString()));
+    console.log(chalk.gray('  Delay between races: ') + chalk.white(`${(config.raceDelayMs ?? 30000) / 1000}s`));
     console.log('');
   }
 

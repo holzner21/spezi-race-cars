@@ -21,10 +21,13 @@ export class BettingBot {
   }
 
   async run(): Promise<void> {
+    const raceDelayMs = this.sessionConfig.raceDelayMs ?? 30000;
+
     console.log(chalk.cyan('\n🏁 Vespa Race Betting Bot Started\n'));
     console.log(chalk.gray(`Strategy: ${this.sessionConfig.strategyConfig.strategy}`));
     console.log(chalk.gray(`Max Races: ${this.sessionConfig.maxRaces}`));
     console.log(chalk.gray(`Stake %: ${this.sessionConfig.strategyConfig.stakePercentage}%\n`));
+    console.log(chalk.gray(`Race delay: ${(raceDelayMs / 1000).toFixed(0)}s\n`));
 
     let currentRaceId = this.sessionConfig.raceId || 0;
     let currentBalance = 0;
@@ -127,8 +130,8 @@ export class BettingBot {
             console.log(chalk.red(`✗ LOSS. Balance: ${currentBalance}\n`));
           }
 
-          // Small delay between races
-          await this.delay(1000);
+          // Keep pace with the frontend race cadence to avoid API throttling.
+          await this.delay(raceDelayMs);
         } catch (error) {
           console.error(chalk.red(`Error placing bet: ${error}`));
           break;

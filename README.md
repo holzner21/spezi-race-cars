@@ -101,6 +101,8 @@ When you run the bot, it will ask for:
 
 6. **Number of Races**: How many races to run before stopping
 
+7. **Delay Between Races**: How long to wait before placing the next bet (default 30 seconds)
+
 ## How It Works
 
 1. The bot fetches odds for the current race
@@ -146,6 +148,8 @@ The bot automatically detects API throttling (when you see response code `200` w
 - **Continues** up to 5 retry attempts with increasing delays (5s → 10s → 20s → 40s → 80s)
 
 This allows the bot to keep running during peak load times without crashing. If all retries fail, the session ends gracefully with a summary of results.
+
+In addition to retry backoff, the bot now waits **30 seconds between races by default** (configurable in CLI) to better match the frontend race cadence and reduce throttling frequency.
 
 **Example output when throttled:**
 ```
