@@ -6,11 +6,15 @@ async function main() {
   const cli = new CLI();
   const args = process.argv.slice(2);
   const dryRunFlag = args.includes('--dry-run') || args.includes('--dryrun');
+  const autoBettingFlag = args.includes('--auto') || args.includes('--autobetting');
 
   try {
     // Get configuration from user
     const sessionConfig = await cli.getSessionConfig();
     sessionConfig.dryRun = sessionConfig.dryRun || dryRunFlag;
+    if (sessionConfig.autoBetting) {
+      sessionConfig.autoBetting.enabled = sessionConfig.autoBetting.enabled || autoBettingFlag;
+    }
     cli.displayConfig(sessionConfig);
 
     if (dryRunFlag) {

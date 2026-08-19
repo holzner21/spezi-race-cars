@@ -11,6 +11,7 @@ An automated betting bot for the Vespa Race game on gewinnspiel.spezi.com. Place
 - 💾 Session history tracking with JSON logs
 - 📈 Historical data analysis with horse performance metrics
 - 🧠 Self-learning algorithm that improves bets based on past results
+- 🤖 Auto-betting mode that can switch strategies based on live performance and historical trends
 - 🌡️ Identifies hot/cold horses and optimal odds ranges
 - ⚡ **Smart rate limiting** - Automatically detects API throttling and retries with exponential backoff
 
@@ -43,7 +44,7 @@ npm test:coverage
 
 ### Test Coverage
 
-- **26 tests** covering core functionality
+- **32 tests** covering core functionality
 - **78% coverage** on strategies module (bet selection logic)
 - **85% coverage** on logger module (session logging)
 - **66% coverage** on analyzer module (historical data analysis)
@@ -53,15 +54,17 @@ npm test:coverage
 - [tests/strategies.test.ts](tests/strategies.test.ts) - Tests for betting strategy logic
 - [tests/logger.test.ts](tests/logger.test.ts) - Tests for session logging
 - [tests/analyzer.test.ts](tests/analyzer.test.ts) - Tests for historical data analysis
+- [tests/auto-betting.test.ts](tests/auto-betting.test.ts) - Tests for auto mode control flow and strategy switching
 
 Example test run output:
 ```
+ PASS  tests/auto-betting.test.ts
  PASS  tests/strategies.test.ts
  PASS  tests/analyzer.test.ts
  PASS  tests/logger.test.ts
 
-Test Suites: 3 passed, 3 total
-Tests:       26 passed, 26 total
+Test Suites: 4 passed, 4 total
+Tests:       32 passed, 32 total
 Snapshots:   0 total
 Time:        2.167 s
 ```
@@ -94,22 +97,30 @@ When you run the bot, it will ask for:
    - **Greedy**: Picks horses with highest odds (potential for big wins)
    - **Kelly**: Uses Kelly Criterion for optimal growth (mathematically optimal)
    - **Conservative**: Bets on favorites with best odds (safer)
+   - The starting choice is used as the initial bias for auto-betting mode
 
 4. **Stake Percentage**: What % of your balance to bet per race (default 10%)
 
 5. **Odds Range**: Filter out extreme bets with min/max odds thresholds
 
-6. **Number of Races**: How many races to run before stopping
+6. **Auto-Betting Mode**: Enable adaptive strategy switching based on live session results and historical trends
+   - Can run for a fixed race count or indefinitely until stopped
+   - Uses a scoring model to switch between `greedy`, `kelly`, and `conservative`
 
-7. **Delay Between Races**: How long to wait before placing the next bet (default 30 seconds)
+7. **Number of Races**: How many races to run before stopping when auto mode is not set to run indefinitely
+
+8. **Delay Between Races**: How long to wait before placing the next bet (default 30 seconds)
+
+You can also enable auto mode from the CLI with `--auto` or `--autobetting`.
 
 ## How It Works
 
 1. The bot fetches odds for the current race
 2. Analyzes odds and calculates implied probabilities
 3. Selects the best bet based on your chosen strategy
-4. Places the bet and records the result
-5. Repeats until max races reached or balance depleted
+4. If auto mode is enabled, evaluates whether another strategy would fit the current balance trend and recent results better
+5. Places the bet and records the result
+6. Repeats until max races reached, balance is depleted, or you stop an indefinite auto run
 
 ### Strategy Details
 
@@ -213,6 +224,16 @@ Session 3: Uses data from Sessions 1-2 for even better accuracy
 ...and so on
 ```
 
+### Auto-Betting Mode
+
+Auto mode keeps the existing bet selection flow, but re-evaluates the active strategy before each race. It combines historical logs, the current session balance trend, recent win/loss streaks, and odds-based expected value to decide whether to keep the current strategy or switch.
+
+In practice, that means:
+
+- If the session is losing, the bot tends to move toward more conservative picks.
+- If the session is trending upward, it can shift toward higher-growth strategies.
+- If the score difference is too small, it keeps the current strategy to avoid churn.
+
 ## Example Output
 
 ```
@@ -272,6 +293,13 @@ Race 2: Betting 68 on Horse 6 @ 1.4955
 ╚════════════════════════════════════════════════════════╝
 
 📁 Session logs saved to: .betting-logs/session-2026-08-18T...json
+```
+
+Auto mode output will include messages like:
+
+```text
+🤖 Auto-betting mode started
+   Auto strategy: Probability: 66.81%, EV: 0.0455 [Historical] | Strategy: kelly | Live ROI: 12.00%, Win rate: 75.00% | Switching from conservative to kelly
 ```
 
 ## File Structure

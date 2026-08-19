@@ -51,6 +51,13 @@ export interface StrategyConfig {
   strategy: 'greedy' | 'kelly' | 'conservative';
 }
 
+export interface AutoBettingConfig {
+  enabled: boolean;
+  indefinite: boolean;
+  strategySwitchDelta: number;
+  recentWindowSize: number;
+}
+
 export interface SessionConfig {
   cookies: string;
   nonce: string;
@@ -59,6 +66,7 @@ export interface SessionConfig {
   raceDelayMs?: number;
   dryRun?: boolean;
   strategyConfig: StrategyConfig;
+  autoBetting?: AutoBettingConfig;
 }
 
 export interface Stats {

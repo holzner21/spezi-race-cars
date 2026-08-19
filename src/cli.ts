@@ -76,6 +76,28 @@ export class CLI {
       10
     );
 
+    const autoBettingAnswer = await this.prompt(
+      chalk.gray('Enable auto-betting mode? (yes/no, default no): ')
+    );
+    const autoBettingEnabled = autoBettingAnswer.toLowerCase() === 'yes' || autoBettingAnswer.toLowerCase() === 'y';
+
+    let autoBetting = {
+      enabled: autoBettingEnabled,
+      indefinite: false,
+      strategySwitchDelta: 5,
+      recentWindowSize: 5
+    };
+
+    if (autoBettingEnabled) {
+      const indefiniteAnswer = await this.prompt(
+        chalk.gray('Run auto-betting indefinitely? (yes/no, default no): ')
+      );
+      autoBetting = {
+        ...autoBetting,
+        indefinite: indefiniteAnswer.toLowerCase() === 'yes' || indefiniteAnswer.toLowerCase() === 'y'
+      };
+    }
+
     const dryRunAnswer = await this.prompt(
       chalk.gray('Run a dry-run simulation only? (yes/no, default no): ')
     );
@@ -91,6 +113,7 @@ export class CLI {
     console.log(chalk.gray('  1. greedy - Pick horses with best odds'));
     console.log(chalk.gray('  2. kelly - Kelly Criterion (optimal growth)'));
     console.log(chalk.gray('  3. conservative - Pick favorites with best odds'));
+    console.log(chalk.gray('  This starting choice is used as the initial bias for auto mode.'));
 
     let strategy = 'conservative';
     const strategyChoice = await this.prompt(
@@ -131,7 +154,8 @@ export class CLI {
       maxRaces,
       raceDelayMs: Math.max(1, raceDelaySeconds) * 1000,
       dryRun,
-      strategyConfig
+      strategyConfig,
+      autoBetting
     };
 
     return sessionConfig;
@@ -143,6 +167,7 @@ export class CLI {
     console.log(chalk.gray('  Stake per race: ') + chalk.white(`${config.strategyConfig.stakePercentage}%`));
     console.log(chalk.gray('  Odds range: ') + chalk.white(`${config.strategyConfig.minOddsThreshold} - ${config.strategyConfig.maxOddsThreshold}`));
     console.log(chalk.gray('  Max races: ') + chalk.white(config.maxRaces.toString()));
+    console.log(chalk.gray('  Auto mode: ') + chalk.white(config.autoBetting?.enabled ? (config.autoBetting.indefinite ? 'enabled (indefinite)' : 'enabled (finite)') : 'disabled'));
     console.log(chalk.gray('  Delay between races: ') + chalk.white(`${(config.raceDelayMs ?? 30000) / 1000}s`));
     console.log(chalk.gray('  Run mode: ') + chalk.white(config.dryRun ? 'dry-run simulation' : 'live betting'));
     console.log('');
