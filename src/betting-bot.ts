@@ -18,7 +18,7 @@ export class BettingBot {
     this.sessionConfig = sessionConfig;
     this.apiClient = new ApiClient(sessionConfig.cookies);
     this.statsTracker = new StatsTracker(startingBalance);
-    this.logger = new Logger();
+    this.logger = new Logger(sessionConfig.strategyConfig.strategy, startingBalance);
   }
 
   async run(): Promise<void> {
@@ -117,6 +117,8 @@ export class BettingBot {
           });
 
           // Process result
+          const balanceBefore = currentBalance;
+          const oddsForThisRace = currentOdds!;
           const betResult: BetResult = {
             raceId: currentRaceId,
             horsePicked: betDecision.horse,
@@ -130,7 +132,7 @@ export class BettingBot {
           };
 
           this.statsTracker.recordBet(betResult);
-          this.logger.logBet(betResult, this.sessionConfig.strategyConfig.strategy);
+          this.logger.logRace(currentRaceId, oddsForThisRace, betResult, result.data, balanceBefore);
           currentBalance = result.data.new_balance;
           currentRaceId = result.data.next_race.race_id;
           currentOdds = result.data.next_race.odds;
@@ -211,7 +213,7 @@ export class BettingBot {
       };
 
       this.statsTracker.recordBet(betResult);
-      this.logger.logBet(betResult, `dry-run:${this.sessionConfig.strategyConfig.strategy}`);
+      this.logger.logBet(betResult, `dry-run:${this.sessionConfig.strategyConfig.strategy}`); // dry-run has no real API odds
 
       console.log(
         chalk.blue(
@@ -333,6 +335,8 @@ export class BettingBot {
           stake: betDecision.stake
         });
 
+        const balanceBefore = currentBalance;
+        const oddsForThisRace = currentOdds!;
         const betResult: BetResult = {
           raceId: currentRaceId,
           horsePicked: betDecision.horse,
@@ -346,7 +350,7 @@ export class BettingBot {
         };
 
         this.statsTracker.recordBet(betResult);
-        this.logger.logBet(betResult, activeStrategy);
+        this.logger.logRace(currentRaceId, oddsForThisRace, betResult, result.data, balanceBefore);
         currentBalance = result.data.new_balance;
         currentRaceId = result.data.next_race.race_id;
         currentOdds = result.data.next_race.odds;

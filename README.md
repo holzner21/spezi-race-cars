@@ -4,16 +4,15 @@ An automated betting bot for the Vespa Race game on gewinnspiel.spezi.com. Place
 
 ## Features
 
-- 🤖 Automated betting with multiple strategies
+- 🤖 Automated betting with multiple strategies (greedy, kelly, conservative)
 - 📊 Real-time statistics tracking (ROI, win rate, profit/loss)
 - 🎯 Intelligent bet selection based on odds analysis
-- 🔄 Support for different betting strategies (greedy, kelly, conservative)
-- 💾 Session history tracking with JSON logs
+- 💾 **SQLite race log** — stores every race's full finish order, pre-race win/place/exacta/trifecta odds, and bet details
 - 📈 Historical data analysis with horse performance metrics
 - 🧠 Self-learning algorithm that improves bets based on past results
-- 🤖 Auto-betting mode that can switch strategies based on live performance and historical trends
-- 🌡️ Identifies hot/cold horses and optimal odds ranges
-- ⚡ **Smart rate limiting** - Automatically detects API throttling and retries with exponential backoff
+- 🤖 Auto-betting mode that switches strategies based on live performance
+- 🔬 **Backtesting simulator** — replay stored races to compare strategies without risking real money
+- ⚡ Smart rate limiting with exponential backoff
 
 ## Installation
 
@@ -29,45 +28,19 @@ npm run build
 
 ## Testing
 
-Run the test suite with:
-
 ```bash
-# Run all tests
-npm test
-
-# Run tests in watch mode (re-run on changes)
-npm test:watch
-
-# Run tests with coverage report
-npm test:coverage
+npm test               # run all tests
+npm run test:watch     # re-run on changes
+npm run test:coverage  # with coverage report
 ```
-
-### Test Coverage
-
-- **32 tests** covering core functionality
-- **78% coverage** on strategies module (bet selection logic)
-- **85% coverage** on logger module (session logging)
-- **66% coverage** on analyzer module (historical data analysis)
 
 ### Test Files
 
-- [tests/strategies.test.ts](tests/strategies.test.ts) - Tests for betting strategy logic
-- [tests/logger.test.ts](tests/logger.test.ts) - Tests for session logging
-- [tests/analyzer.test.ts](tests/analyzer.test.ts) - Tests for historical data analysis
-- [tests/auto-betting.test.ts](tests/auto-betting.test.ts) - Tests for auto mode control flow and strategy switching
-
-Example test run output:
-```
- PASS  tests/auto-betting.test.ts
- PASS  tests/strategies.test.ts
- PASS  tests/analyzer.test.ts
- PASS  tests/logger.test.ts
-
-Test Suites: 4 passed, 4 total
-Tests:       32 passed, 32 total
-Snapshots:   0 total
-Time:        2.167 s
-```
+- [tests/strategies.test.ts](tests/strategies.test.ts) — betting strategy logic
+- [tests/logger.test.ts](tests/logger.test.ts) — SQLite session logging
+- [tests/analyzer.test.ts](tests/analyzer.test.ts) — historical data analysis
+- [tests/auto-betting.test.ts](tests/auto-betting.test.ts) — auto mode control flow
+- [tests/simulator.test.ts](tests/simulator.test.ts) — backtesting simulator
 
 ## Usage
 
@@ -78,253 +51,194 @@ npm run dev
 
 ### Production Mode
 ```bash
-npm run start
+npm run build && npm start
 ```
+
+### CLI flags
+
+| Flag | Effect |
+|---|---|
+| `--dry-run` / `--dryrun` | Simulate bets without calling the real API |
+| `--auto` / `--autobetting` | Start directly in auto-betting mode |
 
 ## Configuration
 
 When you run the bot, it will ask for:
 
-1. **Session Cookies**: Your WordPress session cookies (`wordpress_sec` and `wordpress_logged_in`)
-   - Get these from Browser DevTools → Application → Cookies
-   - Copy the entire cookie value
+1. **Session Cookies** — your WordPress session cookies (`wordpress_sec` and `wordpress_logged_in`)  
+   Get them from Browser DevTools → Application → Cookies.
 
-2. **Nonce**: The security nonce value
-   - Found in the game's HTTP requests (check Network tab)
-   - Looks like: `29f225d329`
+2. **Nonce** — the security nonce from the game's HTTP requests (Network tab), e.g. `29f225d329`.
 
-3. **Strategy Selection**:
-   - **Greedy**: Picks horses with highest odds (potential for big wins)
-   - **Kelly**: Uses Kelly Criterion for optimal growth (mathematically optimal)
-   - **Conservative**: Bets on favorites with best odds (safer)
-   - The starting choice is used as the initial bias for auto-betting mode
+3. **Strategy**:
+   - **Conservative** — bets on favorites (lowest odds). Safer, more consistent.
+   - **Kelly** — Kelly Criterion, mathematically optimal long-term growth: `f* = (p×b - q) / b`, capped at 25%.
+   - **Greedy** — highest odds, highest potential payout, highest risk.
 
-4. **Stake Percentage**: What % of your balance to bet per race (default 10%)
+4. **Stake Percentage** — % of current balance to bet per race (default 10%).
 
-5. **Odds Range**: Filter out extreme bets with min/max odds thresholds
+5. **Odds Range** — min/max thresholds to filter extreme bets.
 
-6. **Auto-Betting Mode**: Enable adaptive strategy switching based on live session results and historical trends
-   - Can run for a fixed race count or indefinitely until stopped
-   - Uses a scoring model to switch between `greedy`, `kelly`, and `conservative`
+6. **Auto-Betting Mode** — adaptive strategy switching. Runs for a fixed count or indefinitely.
 
-7. **Number of Races**: How many races to run before stopping when auto mode is not set to run indefinitely
+7. **Number of Races** — how many races before stopping.
 
-8. **Delay Between Races**: How long to wait before placing the next bet (default 30 seconds)
-
-You can also enable auto mode from the CLI with `--auto` or `--autobetting`.
+8. **Delay Between Races** — seconds between bets (default 30 s, matches frontend cadence).
 
 ## How It Works
 
-1. The bot fetches odds for the current race
-2. Analyzes odds and calculates implied probabilities
-3. Selects the best bet based on your chosen strategy
-4. If auto mode is enabled, evaluates whether another strategy would fit the current balance trend and recent results better
-5. Places the bet and records the result
-6. Repeats until max races reached, balance is depleted, or you stop an indefinite auto run
+1. Bot fetches odds for the current race from the API.
+2. Chosen strategy selects the best horse and stake size.
+3. Bet is placed; the full API response is saved to SQLite — finish order, payout, balance, and all four odds tables.
+4. In auto mode, the active strategy is re-evaluated before each race based on balance trend, recent win rate, and historical data.
+5. After the session, historical analysis and recommendations are printed.
 
-### Strategy Details
+## Logging & Analysis
 
-#### Greedy Strategy
-- Picks the horse with the highest odds
-- Maximizes potential payout if correct
-- Higher risk, higher reward
+### SQLite Race Database
 
-#### Kelly Criterion
-- Mathematically optimal for long-term growth
-- Calculates optimal stake fraction: `f* = (p×b - q) / b`
-- Where: p = win probability, q = loss probability, b = odds - 1
-- Capped at 25% per bet for safety
+All data is stored in `.betting-logs/races.db`. Every race record includes:
 
-#### Conservative Strategy
-- Picks horses with lower odds (favorites)
-- Bets on the most likely winners
-- Lower risk, more consistent returns
+| Column | What's stored |
+|---|---|
+| `finish_order` | Actual finish positions, e.g. `[3,5,1,2,6,4]` |
+| `win_odds` | Pre-race win odds for all 6 horses |
+| `place_odds` | Pre-race place odds |
+| `exacta_odds` | Full exacta odds matrix |
+| `trifecta_odds` | Full trifecta odds cube |
+| `our_result` | `win` or `loss` |
+| `payout` | Actual payout received |
+| `balance_after` | Balance after the race |
 
-## Statistics
+The linked `bets` table stores the horse picked, stake, bet type, odds at bet time, and strategy used.
 
-The bot tracks:
-- Total races and win rate
-- Starting balance vs current balance
-- Total staked and total payout
-- Net profit/loss and ROI (%)
-- Individual bet history
+You can query the database directly:
+
+```bash
+sqlite3 .betting-logs/races.db
+
+# Win rate per horse across all sessions
+SELECT json_each.value AS horse,
+       COUNT(*) AS total,
+       SUM(CASE WHEN finish_order LIKE json_each.value || ',%'
+                  OR finish_order LIKE '[' || json_each.value || ',%' THEN 1 ELSE 0 END) AS wins
+FROM races, json_each(finish_order)
+GROUP BY horse;
+
+# Average win odds for horse 1 over time
+SELECT AVG(json_extract(win_odds, '$.1')) FROM races WHERE win_odds != '{}';
+
+# All bets and their outcomes
+SELECT r.race_id, b.horse_picked, b.stake, b.odds_at_bet, r.our_result, r.payout
+FROM races r JOIN bets b ON b.race_fk = r.id
+ORDER BY r.timestamp DESC LIMIT 20;
+```
+
+### Historical Analysis
+
+After each session the bot prints:
+
+- Overall win rate and profit
+- Per-horse win rate, average odds, and ROI
+- Best-performing odds range
+- Hot horses (>50% win rate) and cold horses (<20%)
+- Recommendations for adjusting strategy
+
+## Backtesting Simulator
+
+The simulator replays every stored race against one or more strategy configurations, using the **actual recorded finish order** as ground truth. No API calls are made.
+
+### Run from code
+
+```typescript
+import { Simulator } from './src/simulator';
+
+// Test a single strategy
+const result = Simulator.run(
+  { strategy: 'conservative', minOddsThreshold: 1.5, maxOddsThreshold: 10, stakePercentage: 10 },
+  1000  // starting balance
+);
+Simulator.printResult(result);
+
+// Compare strategies side-by-side
+const comparison = Simulator.compare(
+  [
+    { strategy: 'conservative', minOddsThreshold: 1.5, maxOddsThreshold: 10, stakePercentage: 10 },
+    { strategy: 'kelly',        minOddsThreshold: 1.5, maxOddsThreshold: 20, stakePercentage: 10 },
+    { strategy: 'greedy',       minOddsThreshold: 2.0, maxOddsThreshold: 25, stakePercentage:  5 },
+  ],
+  1000
+);
+Simulator.printComparison(comparison);
+```
+
+### Example output
+
+```
+📊 Simulation — strategy: conservative[min=1.5,max=10,stake=10%]
+──────────────────────────────────────────────────
+  Races available  : 120
+  Bets placed      : 98   (skipped: 22)
+  Wins / Losses    : 41 / 57
+  Win rate         : 41.84%
+  Total staked     : 9241.00
+  Total payout     : 8610.00
+  Net profit       : -631.00
+  ROI              : -6.83%
+  Starting balance : 1000
+  Final balance    : 369.00
+  Peak balance     : 1182.00
+  Max drawdown     : 813.00
+
+📊 Simulation — strategy: kelly[min=1.5,max=20,stake=10%]
+──────────────────────────────────────────────────
+  ...
+```
+
+### What "skipped" means
+
+A race is skipped when no horse falls within the configured `minOddsThreshold`–`maxOddsThreshold` range. Adjust these values to change how selective the strategy is.
+
+### Only races with full odds are simulated
+
+Races logged before the SQLite upgrade (old JSON sessions) or races logged via the legacy `logBet()` shim store empty odds and are excluded from simulation. Only races recorded by the live/auto betting loop (which calls `logRace()`) carry full odds data.
 
 ## Rate Limiting & Throttling
 
-The bot automatically detects API throttling (when you see response code `200` with `success: false`) and implements **exponential backoff**:
+The bot detects API throttling and uses **exponential backoff** with up to 5 retries:
 
-- **1st throttle**: Waits 5 seconds before retrying
-- **2nd throttle**: Waits 10 seconds
-- **3rd throttle**: Waits 20 seconds
-- **Continues** up to 5 retry attempts with increasing delays (5s → 10s → 20s → 40s → 80s)
-
-This allows the bot to keep running during peak load times without crashing. If all retries fail, the session ends gracefully with a summary of results.
-
-In addition to retry backoff, the bot now waits **30 seconds between races by default** (configurable in CLI) to better match the frontend race cadence and reduce throttling frequency.
-
-**Example output when throttled:**
 ```
 ⏸️  API throttled! Retry 1/5 in 5.0s...
 ⏸️  API throttled! Retry 2/5 in 10.0s...
 ✓ WIN! Payout: 150, Balance: 850
 ```
 
-## Logging & Analysis
-
-### Session Logs
-
-Every session is automatically logged to `.betting-logs/session-{timestamp}.json` containing:
-- Timestamp of each bet
-- Horse number and odds
-- Stake amount and result
-- Payout and balance after bet
-- Strategy used
-
-### Historical Analysis
-
-After each session, the bot analyzes all logged sessions and displays:
-
-1. **Overall Statistics**
-   - Total bets placed across all sessions
-   - Win rate
-   - Total profit/loss
-
-2. **Horse Performance**
-   - Win rate per horse
-   - Average odds and payout
-   - ROI for each horse
-   - Hot horses (>50% win rate) - good betting targets
-   - Cold horses (<20% win rate) - horses to avoid
-
-3. **Odds Analysis**
-   - Win rate by odds range
-   - Best performing odds ranges
-   - Helps optimize odds thresholds
-
-4. **Smart Recommendations**
-   - Identifies profitable patterns
-   - Suggests which horses to favor
-   - Recommends odds ranges to target
-   - Alerts if performance is deteriorating
-
-### Self-Learning Algorithm
-
-The bot uses historical data to improve betting decisions:
-
-- **First bets**: Uses implied probability from odds
-- **Subsequent bets**: Incorporates historical win rates per horse
-- **Dynamic strategy**: Adjusts based on accumulated data
-- **Better accuracy**: Over time, bets become more accurate as data grows
-
-```
-Example flow:
-Session 1: No historical data → uses odds-based probabilities
-Session 2: Uses data from Session 1 to improve bets
-Session 3: Uses data from Sessions 1-2 for even better accuracy
-...and so on
-```
-
-### Auto-Betting Mode
-
-Auto mode keeps the existing bet selection flow, but re-evaluates the active strategy before each race. It combines historical logs, the current session balance trend, recent win/loss streaks, and odds-based expected value to decide whether to keep the current strategy or switch.
-
-In practice, that means:
-
-- If the session is losing, the bot tends to move toward more conservative picks.
-- If the session is trending upward, it can shift toward higher-growth strategies.
-- If the score difference is too small, it keeps the current strategy to avoid churn.
-
-## Example Output
-
-```
-🏁 Vespa Race Betting Bot Started
-
-Strategy: conservative
-Max Races: 10
-Stake %: 10%
-
-📊 Using historical data to improve bets
-
-Race 1: Betting 52 on Horse 1 @ 2.5854
-  Probability: 38.69%, EV: 0.0026
-✓ WIN! Payout: 134, Balance: 682
-
-Race 2: Betting 68 on Horse 6 @ 1.4955
-  Probability: 66.81%, EV: 0.0455 [Historical]
-✓ WIN! Payout: 101, Balance: 715
-
-╔════════════════════════════════════════╗
-║        BETTING SESSION SUMMARY         ║
-╠════════════════════════════════════════╣
-║ Total Races:         2                  ║
-║ Wins:                2                  ║
-║ Losses:              0                  ║
-║ Win Rate:            100.00%             ║
-╠════════════════════════════════════════╣
-║ Starting Balance:    620                 ║
-║ Current Balance:     715                 ║
-║ Total Staked:        120                 ║
-║ Total Payout:        235                 ║
-╠════════════════════════════════════════╣
-║ Net Profit/Loss:     95                  ║
-║ ROI:                 15.32%               ║
-╚════════════════════════════════════════╝
-
-╔════════════════════════════════════════════════════════╗
-║           HISTORICAL BETTING ANALYSIS                  ║
-╠════════════════════════════════════════════════════════╣
-║ Total Bets:              25                            ║
-║ Total Wins:              18                            ║
-║ Overall Win Rate:        72.00%                        ║
-║ Total Profit:            450                           ║
-╠════════════════════════════════════════════════════════╣
-║ 🔥 HOT HORSES (>50% win rate):                         ║
-║   Horse 1: 85.0% (17/20)                               ║
-║   Horse 6: 60.0% (3/5)                                 ║
-║ ❄️  COLD HORSES (<20% win rate):                       ║
-║   Horse 3: 10.0% (1/10)                                ║
-╠════════════════════════════════════════════════════════╣
-║ 💡 RECOMMENDATIONS:                                    ║
-║ 🐴 Horse 1 has 85.0% win rate - consider betting       ║
-║    more on it                                           ║
-║ 📊 Best odds range: 1.5-2.5 (72.5% win rate)          ║
-║ ✅ Overall profitable! ROI: 12.5% - keep current      ║
-║    strategy                                             ║
-╚════════════════════════════════════════════════════════╝
-
-📁 Session logs saved to: .betting-logs/session-2026-08-18T...json
-```
-
-Auto mode output will include messages like:
-
-```text
-🤖 Auto-betting mode started
-   Auto strategy: Probability: 66.81%, EV: 0.0455 [Historical] | Strategy: kelly | Live ROI: 12.00%, Win rate: 75.00% | Switching from conservative to kelly
-```
+The default 30-second delay between races matches the frontend race cadence and significantly reduces throttling frequency.
 
 ## File Structure
 
 ```
-.betting-logs/              # Session logs (auto-created)
-  session-{timestamp}.json  # Individual session bet history
+.betting-logs/
+  races.db              # SQLite database — all race history
 src/
-  api-client.ts            # API communication
-  betting-bot.ts           # Main bot orchestration
-  cli.ts                   # Interactive CLI
-  strategies.ts            # Betting strategy logic (with historical data)
-  stats-tracker.ts         # Session statistics
-  logger.ts                # Logging to JSON files
-  analyzer.ts              # Historical data analysis
-  types.ts                 # TypeScript interfaces
-  index.ts                 # Entry point
+  db.ts                 # SQLite connection and schema migrations
+  logger.ts             # Race + bet logging (SQLite)
+  simulator.ts          # Backtesting engine
+  analyzer.ts           # Historical data analysis and recommendations
+  betting-bot.ts        # Main bot orchestration
+  strategies.ts         # Bet selection logic
+  stats-tracker.ts      # Per-session statistics
+  cli.ts                # Interactive CLI prompts
+  api-client.ts         # API communication
+  types.ts              # TypeScript interfaces
+  index.ts              # Entry point
 ```
 
 ## Notes
 
-- The bot respects rate limits (1s delay between races)
-- Session cookies expire after ~30 days
-- Always test with small stakes first
-- The "best" strategy depends on your risk tolerance and the odds patterns
+- Session cookies expire after ~30 days.
+- Always test with small stakes or dry-run mode first.
+- The more races you log with full odds, the more useful the simulator becomes.
 
 ## Disclaimer
 

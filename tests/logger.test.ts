@@ -1,21 +1,19 @@
+import Database from 'better-sqlite3';
 import { Logger } from '../src/logger';
-import * as fs from 'fs';
-import * as path from 'path';
+import { setDb, resetDb } from '../src/db';
 
 describe('Logger', () => {
   let logger: Logger;
-  let logFile: string;
 
   beforeEach(() => {
-    logger = new Logger();
-    logFile = logger.getLogFile();
+    // Use an isolated in-memory database for each test
+    const memDb = new Database(':memory:');
+    setDb(memDb);
+    logger = new Logger('conservative', 1000);
   });
 
   afterEach(() => {
-    // Clean up log file after each test
-    if (fs.existsSync(logFile)) {
-      fs.unlinkSync(logFile);
-    }
+    resetDb();
   });
 
   describe('logBet', () => {
@@ -98,11 +96,9 @@ describe('Logger', () => {
   });
 
   describe('getLogFile', () => {
-    it('should return a valid log file path', () => {
+    it('should return a session identifier string', () => {
       const logFile = logger.getLogFile();
-      expect(logFile).toContain('.betting-logs');
       expect(logFile).toContain('session-');
-      expect(logFile).toMatch(/\.json$/);
     });
   });
 
@@ -142,28 +138,6 @@ describe('Logger', () => {
 
       const logs = logger.getAllLogs();
       expect(logs).toHaveLength(2);
-    });
-  });
-
-  describe('getAllSessions', () => {
-    it('should find session files', () => {
-      const bet = {
-        raceId: 123,
-        horsePicked: 1,
-        stakeAmount: 100,
-        betType: 'win' as const,
-        odds: 2.0,
-        result: 'win' as const,
-        payout: 200,
-        finishOrder: [1, 2, 3, 4, 5, 6],
-        newBalance: 1100
-      };
-
-      logger.logBet(bet, 'conservative');
-
-      const sessions = Logger.getAllSessions();
-      expect(sessions.length).toBeGreaterThan(0);
-      expect(sessions[0]).toContain('.betting-logs');
     });
   });
 });
