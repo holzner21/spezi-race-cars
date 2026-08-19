@@ -6,6 +6,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "ts-node src/index.ts",
+    "optimize": "ts-node src/optimizer.ts",
+    "walkforward": "ts-node -e \"const o=require('./src/optimizer'); console.log(JSON.stringify(o.runWalkForwardValidation(5,1000),null,2));\"",
     "start": "node dist/index.js",
     "test": "jest",
     "test:watch": "jest --watch",

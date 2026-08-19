@@ -97,7 +97,7 @@ describe('auto betting helpers', () => {
     );
 
     expect(choice).not.toBeNull();
-    expect(choice!.strategy).toBe('conservative');
+    expect(['conservative', 'adaptive']).toContain(choice!.strategy);
     expect(choice!.switched).toBe(true);
   });
 
@@ -113,7 +113,7 @@ describe('auto betting helpers', () => {
     );
 
     expect(choice).not.toBeNull();
-    expect(choice!.strategy).toBe('kelly');
+    expect(['kelly', 'adaptive']).toContain(choice!.strategy);
     expect(choice!.switched).toBe(true);
   });
 

@@ -4,7 +4,7 @@ An automated betting bot for the Vespa Race game on gewinnspiel.spezi.com. Place
 
 ## Features
 
-- 🤖 Automated betting with multiple strategies (greedy, kelly, conservative)
+- 🤖 Automated betting with multiple strategies (greedy, kelly, conservative, adaptive)
 - 📊 Real-time statistics tracking (ROI, win rate, profit/loss)
 - 🎯 Intelligent bet selection based on odds analysis
 - 💾 **SQLite race log** — stores every race's full finish order, pre-race win/place/exacta/trifecta odds, and bet details
@@ -12,6 +12,8 @@ An automated betting bot for the Vespa Race game on gewinnspiel.spezi.com. Place
 - 🧠 Self-learning algorithm that improves bets based on past results
 - 🤖 Auto-betting mode that switches strategies based on live performance
 - 🔬 **Backtesting simulator** — replay stored races to compare strategies without risking real money
+- 🧪 **Historical optimizer** — sweeps many parameter sets and ranks by ROI/final balance/drawdown
+- 🚶 **Walk-forward validation** — out-of-sample fold testing to reduce overfitting risk
 - ⚡ Smart rate limiting with exponential backoff
 
 ## Installation
@@ -33,6 +35,15 @@ npm test               # run all tests
 npm run test:watch     # re-run on changes
 npm run test:coverage  # with coverage report
 ```
+
+## Analysis Commands
+
+```bash
+npm run optimize      # full in-sample candidate sweep + walk-forward summary
+npm run walkforward   # walk-forward validation report only
+```
+
+Both commands read `.betting-logs/races.db` and require races with full odds (`logRace()` records).
 
 ### Test Files
 
@@ -74,6 +85,7 @@ When you run the bot, it will ask for:
    - **Conservative** — bets on favorites (lowest odds). Safer, more consistent.
    - **Kelly** — Kelly Criterion, mathematically optimal long-term growth: `f* = (p×b - q) / b`, capped at 25%.
    - **Greedy** — highest odds, highest potential payout, highest risk.
+  - **Adaptive** — blends implied probability with historical horse performance, applies an edge filter, and sizes stake with capped Kelly-style risk control.
 
 4. **Stake Percentage** — % of current balance to bet per race (default 10%).
 
@@ -202,6 +214,30 @@ A race is skipped when no horse falls within the configured `minOddsThreshold`�
 ### Only races with full odds are simulated
 
 Races logged before the SQLite upgrade (old JSON sessions) or races logged via the legacy `logBet()` shim store empty odds and are excluded from simulation. Only races recorded by the live/auto betting loop (which calls `logRace()`) carry full odds data.
+
+## Historical Optimizer
+
+`npm run optimize` runs a broad candidate sweep across baseline and adaptive model variants and ranks results by:
+
+1. ROI (descending)
+2. Final balance (descending)
+3. Max drawdown (ascending)
+
+The output includes:
+
+- `best`: top in-sample candidate
+- `top10`: best ten configurations
+- `walkForward`: out-of-sample fold results
+
+### Walk-forward validation
+
+`npm run walkforward` evaluates strategy robustness by repeatedly:
+
+1. Training on earlier races (expanding window)
+2. Selecting the best candidate on that training slice
+3. Testing that selected candidate on the next unseen race slice
+
+Pay more attention to `averageTestROI`, `medianTestROI`, and `profitableFolds` than to a single high in-sample ROI. If in-sample ROI is high but fold test ROI is unstable/negative, the setup is likely overfit.
 
 ## Rate Limiting & Throttling
 

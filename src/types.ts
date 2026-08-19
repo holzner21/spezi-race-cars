@@ -48,7 +48,7 @@ export interface StrategyConfig {
   minOddsThreshold: number;
   maxOddsThreshold: number;
   stakePercentage: number;
-  strategy: 'greedy' | 'kelly' | 'conservative';
+  strategy: 'greedy' | 'kelly' | 'conservative' | 'adaptive';
 }
 
 export interface AutoBettingConfig {

@@ -11,6 +11,12 @@ export interface BetDecision {
 }
 
 export class BettingStrategy {
+  private static readonly ADAPTIVE_MIN_EDGE = 0.05;
+  private static readonly ADAPTIVE_BASE_STAKE_PCT = 8;
+  private static readonly ADAPTIVE_KELLY_MULTIPLIER = 0.5;
+  private static readonly ADAPTIVE_MAX_STAKE_PCT = 8;
+  private static readonly ADAPTIVE_MAX_ODDS = 7.5;
+
   /**
    * Calculate implied probability from odds
    * Probability = 1 / odds
@@ -28,6 +34,10 @@ export class BettingStrategy {
     config: StrategyConfig,
     horseStats?: HorseStats[]
   ): BetDecision | null {
+    if (config.strategy === 'adaptive') {
+      return this.decideAdaptiveBet(odds, balance, config, horseStats);
+    }
+
     const winOdds = odds.win;
     const candidates: BetDecision[] = [];
 
@@ -103,6 +113,66 @@ export class BettingStrategy {
     return best;
   }
 
+  private static decideAdaptiveBet(
+    odds: RaceOdds,
+    balance: number,
+    config: StrategyConfig,
+    horseStats?: HorseStats[]
+  ): BetDecision | null {
+    const candidates: BetDecision[] = [];
+    const historicalGlobalProbability = this.getGlobalHistoricalProbability(horseStats);
+
+    for (const [horseStr, horseOdds] of Object.entries(odds.win)) {
+      const horse = parseInt(horseStr, 10);
+      const adaptiveMaxOdds = Math.min(config.maxOddsThreshold, this.ADAPTIVE_MAX_ODDS);
+
+      if (horseOdds < config.minOddsThreshold || horseOdds > adaptiveMaxOdds) {
+        continue;
+      }
+
+      const impliedProbability = this.getImpliedProbability(horseOdds);
+      const historicalHorseProbability = this.getHorseHistoricalProbability(horse, horseStats);
+
+      const blendedProbability = this.clampProbability(
+        0.45 * historicalHorseProbability +
+        0.35 * historicalGlobalProbability +
+        0.2 * impliedProbability
+      );
+
+      const expectedValue = blendedProbability * horseOdds - 1;
+
+      if (expectedValue < this.ADAPTIVE_MIN_EDGE) {
+        continue;
+      }
+
+      candidates.push({
+        horse,
+        stake: 0,
+        odds: horseOdds,
+        expectedValue,
+        probability: blendedProbability,
+        reason: `Adaptive p=${(blendedProbability * 100).toFixed(2)}%, edge=${expectedValue.toFixed(4)}, implied=${(impliedProbability * 100).toFixed(2)}%`
+      });
+    }
+
+    if (candidates.length === 0) {
+      return null;
+    }
+
+    candidates.sort((a, b) => b.expectedValue - a.expectedValue);
+    const best = candidates[0];
+    const kelly = this.kellyFraction(best.odds, best.probability);
+    const adaptivePct = Math.min(
+      this.ADAPTIVE_MAX_STAKE_PCT,
+      this.ADAPTIVE_BASE_STAKE_PCT * Math.max(0.1, kelly * this.ADAPTIVE_KELLY_MULTIPLIER)
+    );
+
+    best.stake = Math.max(Math.floor(balance * (adaptivePct / 100)), 1);
+    best.reason += `, stake=${adaptivePct.toFixed(2)}%`;
+
+    return best;
+  }
+
   /**
    * Kelly Criterion: f* = (p * b - q) / b
    * where p = win probability, q = loss probability, b = odds - 1
@@ -121,5 +191,36 @@ export class BettingStrategy {
     const win = stake * odds * probability;
     const loss = -stake * (1 - probability);
     return win + loss;
+  }
+
+  private static getHorseHistoricalProbability(horse: number, horseStats?: HorseStats[]): number {
+    if (!horseStats || horseStats.length === 0) {
+      return 1 / 6;
+    }
+
+    const matched = horseStats.find(entry => entry.horse === horse);
+    if (!matched) {
+      return this.getGlobalHistoricalProbability(horseStats);
+    }
+
+    return this.clampProbability(matched.winRate / 100);
+  }
+
+  private static getGlobalHistoricalProbability(horseStats?: HorseStats[]): number {
+    if (!horseStats || horseStats.length === 0) {
+      return 1 / 6;
+    }
+
+    const totalBets = horseStats.reduce((sum, item) => sum + item.totalBets, 0);
+    const totalWins = horseStats.reduce((sum, item) => sum + item.wins, 0);
+    if (totalBets === 0) {
+      return 1 / 6;
+    }
+
+    return this.clampProbability(totalWins / totalBets);
+  }
+
+  private static clampProbability(probability: number): number {
+    return Math.max(0.01, Math.min(0.99, probability));
   }
 }

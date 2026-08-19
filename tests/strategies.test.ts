@@ -67,6 +67,28 @@ describe('BettingStrategy', () => {
       expect(decision!.odds).toBeGreaterThanOrEqual(5.0);
     });
 
+    it('adaptive strategy should return only when edge is positive enough and size stake dynamically', () => {
+      const adaptiveConfig = {
+        ...config,
+        strategy: 'adaptive' as const,
+        minOddsThreshold: 1.5,
+        maxOddsThreshold: 10
+      };
+      const historicalData = [
+        { horse: 1, totalBets: 20, wins: 4, losses: 16, avgOdds: 2.5, avgPayout: 0, winRate: 20, roi: -20 },
+        { horse: 2, totalBets: 20, wins: 3, losses: 17, avgOdds: 3.0, avgPayout: 0, winRate: 15, roi: -40 },
+        { horse: 3, totalBets: 20, wins: 12, losses: 8, avgOdds: 5.0, avgPayout: 0, winRate: 60, roi: 50 },
+        { horse: 4, totalBets: 20, wins: 2, losses: 18, avgOdds: 10.0, avgPayout: 0, winRate: 10, roi: -70 }
+      ];
+
+      const decision = BettingStrategy.decideBet(mockOdds, 1000, adaptiveConfig, historicalData);
+      expect(decision).not.toBeNull();
+      expect(decision!.horse).toBe(3);
+      expect(decision!.stake).toBeGreaterThanOrEqual(1);
+      expect(decision!.stake).toBeLessThanOrEqual(80);
+      expect(decision!.reason).toContain('Adaptive');
+    });
+
     it('should calculate correct stake based on balance and percentage', () => {
       const decision = BettingStrategy.decideBet(mockOdds, 1000, config);
       const expectedStake = Math.floor(1000 * (config.stakePercentage / 100));

@@ -113,15 +113,17 @@ export class CLI {
     console.log(chalk.gray('  1. greedy - Pick horses with best odds'));
     console.log(chalk.gray('  2. kelly - Kelly Criterion (optimal growth)'));
     console.log(chalk.gray('  3. conservative - Pick favorites with best odds'));
+    console.log(chalk.gray('  4. adaptive - Historical probability blend + edge filter + risk-based stake'));
     console.log(chalk.gray('  This starting choice is used as the initial bias for auto mode.'));
 
     let strategy = 'conservative';
     const strategyChoice = await this.prompt(
-      chalk.gray('Select strategy (1-3, default 3): ')
+      chalk.gray('Select strategy (1-4, default 3): ')
     );
     const choice = parseInt(strategyChoice, 10);
     if (choice === 1) strategy = 'greedy';
     else if (choice === 2) strategy = 'kelly';
+    else if (choice === 4) strategy = 'adaptive';
 
     // Get stake percentage
     const stakePercentage = await this.promptNumber(

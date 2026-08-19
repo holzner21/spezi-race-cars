@@ -10,7 +10,7 @@ export interface AutoStrategyChoice {
   reason: string;
 }
 
-const AUTO_STRATEGIES: StrategyConfig['strategy'][] = ['greedy', 'kelly', 'conservative'];
+const AUTO_STRATEGIES: StrategyConfig['strategy'][] = ['greedy', 'kelly', 'conservative', 'adaptive'];
 
 export function shouldContinueAutoBetting(
   raceCount: number,
@@ -107,12 +107,14 @@ function scoreStrategyDecision(
 
   if (liveStats.roi < -10 || liveStats.netProfit < 0) {
     if (strategy === 'conservative') score += 18;
+    if (strategy === 'adaptive') score += 14;
     if (strategy === 'kelly') score += 5;
     if (strategy === 'greedy') score -= 8;
   }
 
   if (recentLossStreak >= 2) {
     if (strategy === 'conservative') score += 15;
+    if (strategy === 'adaptive') score += 12;
     if (strategy === 'kelly') score += 4;
     if (strategy === 'greedy') score -= 10;
   }
@@ -120,6 +122,7 @@ function scoreStrategyDecision(
   if (liveStats.roi > 10 || recentWinRate >= 65 || recentWinStreak >= 2) {
     if (strategy === 'greedy') score += 10;
     if (strategy === 'kelly') score += 12;
+    if (strategy === 'adaptive') score += 9;
     if (strategy === 'conservative') score -= 2;
   }
 
@@ -131,6 +134,7 @@ function scoreStrategyDecision(
   if (decision.odds >= 5) {
     if (strategy === 'greedy') score += 8;
     if (strategy === 'kelly') score += 4;
+    if (strategy === 'adaptive') score += 2;
     if (strategy === 'conservative') score -= 3;
   }
 
