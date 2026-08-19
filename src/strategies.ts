@@ -6,6 +6,7 @@ export interface BetDecision {
   stake: number;
   odds: number;
   expectedValue: number;
+  probability: number;
   reason: string;
 }
 
@@ -53,12 +54,20 @@ export class BettingStrategy {
         stake: 0,
         odds: horseOdds,
         expectedValue: adjustedEV,
+        probability: adjustedProbability,
         reason: `Probability: ${(adjustedProbability * 100).toFixed(2)}%, EV: ${adjustedEV.toFixed(4)}${historicalWinRate ? ' [Historical]' : ''}`
       });
     }
 
     if (candidates.length === 0) {
       return null;
+    }
+
+    if (config.strategy === 'kelly') {
+      const positiveEdgeCandidates = candidates.filter(candidate => candidate.expectedValue > 0);
+      if (positiveEdgeCandidates.length > 0) {
+        candidates.splice(0, candidates.length, ...positiveEdgeCandidates);
+      }
     }
 
     // Sort by different strategies
@@ -69,11 +78,14 @@ export class BettingStrategy {
         break;
 
       case 'kelly':
-        // Kelly Criterion: maximize long-term growth
+        // Prefer the horse with the strongest positive edge, not just the largest raw odds.
+        // Combine expected value and Kelly fraction using the actual win probability.
         candidates.sort((a, b) => {
-          const kellyA = this.kellyFraction(a.odds, this.getImpliedProbability(a.odds));
-          const kellyB = this.kellyFraction(b.odds, this.getImpliedProbability(b.odds));
-          return kellyB - kellyA;
+          const aKelly = this.kellyFraction(a.odds, a.probability);
+          const bKelly = this.kellyFraction(b.odds, b.probability);
+          const aScore = a.expectedValue + aKelly;
+          const bScore = b.expectedValue + bKelly;
+          return bScore - aScore;
         });
         break;
 

@@ -21,6 +21,11 @@ export class BettingBot {
   }
 
   async run(): Promise<void> {
+    if (this.sessionConfig.dryRun) {
+      await this.runDryRun();
+      return;
+    }
+
     const raceDelayMs = this.sessionConfig.raceDelayMs ?? 30000;
 
     console.log(chalk.cyan('\n🏁 Vespa Race Betting Bot Started\n'));
@@ -151,6 +156,128 @@ export class BettingBot {
     } catch (error) {
       console.error(chalk.red(`Fatal error: ${error}`));
     }
+  }
+
+  private async runDryRun(): Promise<void> {
+    const raceDelayMs = this.sessionConfig.raceDelayMs ?? 30000;
+    const startingBalance = this.statsTracker.getStats().currentBalance;
+
+    console.log(chalk.cyan('\n🧪 Dry-run simulation started\n'));
+    console.log(chalk.gray(`Strategy: ${this.sessionConfig.strategyConfig.strategy}`));
+    console.log(chalk.gray(`Max Races: ${this.sessionConfig.maxRaces}`));
+    console.log(chalk.gray(`Stake %: ${this.sessionConfig.strategyConfig.stakePercentage}%`));
+    console.log(chalk.gray(`Race delay: ${(raceDelayMs / 1000).toFixed(0)}s\n`));
+
+    let currentBalance = startingBalance;
+    const historicalLogs = Logger.loadAllHistoricalLogs();
+    const horseStats = this.analyzeHorses(historicalLogs);
+    let currentOdds = this.buildSimulationOdds(horseStats);
+
+    while (this.raceCount < this.sessionConfig.maxRaces) {
+      const betDecision = BettingStrategy.decideBet(
+        currentOdds,
+        currentBalance,
+        this.sessionConfig.strategyConfig,
+        horseStats.length > 0 ? horseStats : undefined
+      );
+
+      if (!betDecision) {
+        console.log(chalk.yellow(`Race ${this.raceCount + 1}: No suitable bets found in dry run. Skipping.`));
+        this.raceCount++;
+        continue;
+      }
+
+      const winner = this.simulateRaceWinner(currentOdds, horseStats);
+      const result: 'win' | 'loss' = winner === betDecision.horse ? 'win' : 'loss';
+      const payout = result === 'win' ? Math.round(betDecision.stake * betDecision.odds) : 0;
+      const newBalance = currentBalance - betDecision.stake + payout;
+
+      const betResult: BetResult = {
+        raceId: this.raceCount + 1,
+        horsePicked: betDecision.horse,
+        stakeAmount: betDecision.stake,
+        betType: 'win',
+        odds: betDecision.odds,
+        result,
+        payout,
+        finishOrder: [winner],
+        newBalance
+      };
+
+      this.statsTracker.recordBet(betResult);
+      this.logger.logBet(betResult, `dry-run:${this.sessionConfig.strategyConfig.strategy}`);
+
+      console.log(
+        chalk.blue(
+          `Race ${this.raceCount + 1}: Dry-run bet ${betDecision.stake} on Horse ${betDecision.horse} @ ${betDecision.odds.toFixed(4)}`
+        )
+      );
+      console.log(chalk.gray(`  ${betDecision.reason}`));
+      console.log(result === 'win'
+        ? chalk.green(`✓ WIN! Payout: ${payout}, Balance: ${newBalance}\n`)
+        : chalk.red(`✗ LOSS. Balance: ${newBalance}\n`));
+
+      currentBalance = newBalance;
+      currentOdds = this.buildSimulationOdds(horseStats);
+      this.raceCount++;
+
+      if (raceDelayMs > 0) {
+        await this.delay(raceDelayMs);
+      }
+    }
+
+    this.statsTracker.printSummary();
+    const report = Analyzer.analyzeHistoricalData();
+    Analyzer.printReport(report);
+    console.log(chalk.cyan(`📁 Dry-run session saved to: ${this.logger.getLogFile()}\n`));
+  }
+
+  private buildSimulationOdds(horseStats: any[]): any {
+    const baseOdds: Record<string, number> = {
+      '1': 2.5,
+      '2': 3.0,
+      '3': 4.0,
+      '4': 5.5,
+      '5': 7.5,
+      '6': 9.0
+    };
+
+    if (horseStats.length === 0) {
+      return { win: baseOdds, place: {}, exacta: {}, trifecta: {} };
+    }
+
+    const odds: Record<string, number> = {};
+    for (let horse = 1; horse <= 6; horse++) {
+      const stats = horseStats.find(entry => entry.horse === horse);
+      const historicalWinRate = stats ? stats.winRate / 100 : 0.2;
+      const inferredOdds = 1 / Math.max(0.08, Math.min(0.9, historicalWinRate));
+      const fallbackOdds = baseOdds[String(horse)] ?? 4.0;
+      odds[String(horse)] = Number(Math.max(1.5, Math.min(25, stats ? inferredOdds : fallbackOdds)).toFixed(4));
+    }
+
+    return { win: odds, place: {}, exacta: {}, trifecta: {} };
+  }
+
+  private simulateRaceWinner(odds: any, horseStats: any[]): number {
+    const horseEntries = Object.entries(odds.win) as [string, number][];
+    const weights = horseEntries.map(([horse, horseOdds]) => {
+      const horseNumber = Number(horse);
+      const historical = horseStats.find(entry => entry.horse === horseNumber);
+      const historicalWeight = historical ? Math.max(0.05, historical.winRate / 100) : Math.max(0.08, 1 / horseOdds);
+      return { horse: horseNumber, weight: historicalWeight };
+    });
+
+    const totalWeight = weights.reduce((sum, next) => sum + next.weight, 0);
+    let threshold = Math.random() * totalWeight;
+
+    for (const entry of weights) {
+      threshold -= entry.weight;
+      if (threshold <= 0) {
+        return entry.horse;
+      }
+    }
+
+    return weights[weights.length - 1].horse;
   }
 
   private analyzeHorses(logs: any[]) {

@@ -57,6 +57,7 @@ export interface SessionConfig {
   raceId?: number;
   maxRaces: number;
   raceDelayMs?: number;
+  dryRun?: boolean;
   strategyConfig: StrategyConfig;
 }
 

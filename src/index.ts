@@ -4,21 +4,28 @@ import { CLI } from './cli';
 
 async function main() {
   const cli = new CLI();
+  const args = process.argv.slice(2);
+  const dryRunFlag = args.includes('--dry-run') || args.includes('--dryrun');
 
   try {
     // Get configuration from user
     const sessionConfig = await cli.getSessionConfig();
+    sessionConfig.dryRun = sessionConfig.dryRun || dryRunFlag;
     cli.displayConfig(sessionConfig);
 
-    // Confirm and start
-    const confirm = await cli.prompt(chalk.yellow('\nStart betting? (yes/no): '));
-    if (confirm.toLowerCase() !== 'yes' && confirm.toLowerCase() !== 'y') {
-      console.log(chalk.gray('Cancelled.'));
+    if (dryRunFlag) {
       cli.close();
-      return;
-    }
+    } else {
+      // Confirm and start
+      const confirm = await cli.prompt(chalk.yellow('\nStart betting? (yes/no): '));
+      if (confirm.toLowerCase() !== 'yes' && confirm.toLowerCase() !== 'y') {
+        console.log(chalk.gray('Cancelled.'));
+        cli.close();
+        return;
+      }
 
-    cli.close();
+      cli.close();
+    }
 
     // Run bot (starting balance will be fetched during initialization)
     const bot = new BettingBot(sessionConfig, 1000);

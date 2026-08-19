@@ -94,6 +94,25 @@ describe('BettingStrategy', () => {
       expect(decision!.horse).toBe(1);
       expect(decision!.reason).toContain('[Historical]');
     });
+
+    it('kelly strategy should prefer the horse with a real positive edge over the first horse in insertion order', () => {
+      const odds = {
+        win: { '1': 1.8, '2': 2.8 },
+        place: {},
+        exacta: {},
+        trifecta: {}
+      };
+      const historicalData = [
+        { horse: 1, totalBets: 10, wins: 2, losses: 8, avgOdds: 1.8, avgPayout: 50, winRate: 20, roi: -60 },
+        { horse: 2, totalBets: 10, wins: 6, losses: 4, avgOdds: 2.8, avgPayout: 110, winRate: 60, roi: 20 }
+      ];
+
+      const decision = BettingStrategy.decideBet(odds, 1000, { ...config, strategy: 'kelly' }, historicalData);
+
+      expect(decision).not.toBeNull();
+      expect(decision!.horse).toBe(2);
+      expect(decision!.reason).toContain('[Historical]');
+    });
   });
 
   describe('calculateExpectedValue', () => {

@@ -76,6 +76,11 @@ export class CLI {
       10
     );
 
+    const dryRunAnswer = await this.prompt(
+      chalk.gray('Run a dry-run simulation only? (yes/no, default no): ')
+    );
+    const dryRun = dryRunAnswer.toLowerCase() === 'yes' || dryRunAnswer.toLowerCase() === 'y';
+
     const raceDelaySeconds = await this.promptNumber(
       chalk.gray('Delay between races in seconds? (default 30): '),
       30
@@ -125,6 +130,7 @@ export class CLI {
       raceId,
       maxRaces,
       raceDelayMs: Math.max(1, raceDelaySeconds) * 1000,
+      dryRun,
       strategyConfig
     };
 
@@ -138,6 +144,7 @@ export class CLI {
     console.log(chalk.gray('  Odds range: ') + chalk.white(`${config.strategyConfig.minOddsThreshold} - ${config.strategyConfig.maxOddsThreshold}`));
     console.log(chalk.gray('  Max races: ') + chalk.white(config.maxRaces.toString()));
     console.log(chalk.gray('  Delay between races: ') + chalk.white(`${(config.raceDelayMs ?? 30000) / 1000}s`));
+    console.log(chalk.gray('  Run mode: ') + chalk.white(config.dryRun ? 'dry-run simulation' : 'live betting'));
     console.log('');
   }
 

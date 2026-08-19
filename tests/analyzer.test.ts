@@ -4,8 +4,10 @@ import { Logger, LogEntry } from '../src/logger';
 describe('Analyzer', () => {
   describe('analyzeHistoricalData', () => {
     it('should return empty report when no historical data', () => {
+      jest.spyOn(Logger, 'loadAllHistoricalLogs').mockReturnValue([]);
+
       const report = Analyzer.analyzeHistoricalData();
-      
+
       expect(report.totalBets).toBe(0);
       expect(report.totalWins).toBe(0);
       expect(report.overallWinRate).toBe(0);
